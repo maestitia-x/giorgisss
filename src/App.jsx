@@ -58,7 +58,7 @@ function useAPI(endpoint, fallback) {
 function WheelSVG({ prizes, spinning, rotation }) {
   const n = prizes.length;
   if (!n) return (
-    <div style={{ width:"100%", maxWidth:680, aspectRatio:"1", borderRadius:"50%", margin:"0 auto",
+    <div style={{ width:"100%", aspectRatio:"1", borderRadius:"50%", margin:"0 auto",
       background:"radial-gradient(circle,#1e293b,#0a0a12)", display:"flex", alignItems:"center",
       justifyContent:"center", border:`3px dashed ${T.brd}` }}>
       <span style={{ color:T.mut, fontSize:17, textAlign:"center", padding:40, lineHeight:1.7 }}>
@@ -70,7 +70,7 @@ function WheelSVG({ prizes, spinning, rotation }) {
   const arc = 360 / n, r = 190, cx = 200, cy = 200;
 
   return (
-    <div style={{ position:"relative", width:"100%", maxWidth:680, margin:"0 auto" }}>
+    <div style={{ position:"relative", width:"100%", margin:"0 auto" }}>
       {/* Pointer — fixed at top */}
       <div style={{
         position:"absolute", top:-4, left:"50%", transform:"translateX(-50%)", zIndex:10,
@@ -234,83 +234,91 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
         }}/>
       ))}
 
-      <h1 style={{
-        fontSize:38, fontWeight:900, color:"#fff", marginBottom:6,
-        textShadow:`0 0 40px ${T.glow}`, letterSpacing:"-1px",
-        animation:"float 4s ease-in-out infinite",
-      }}>🎡 Çarkıfelek</h1>
-      <p style={{ color:T.mut, fontSize:14, marginBottom:16, fontWeight:500 }}>Şansını dene, ödülünü kazan!</p>
-
-      {/* Wheel */}
-      <div style={{ width:"100%", maxWidth:680, position:"relative", zIndex:1 }}>
-        <WheelSVG prizes={prizes} spinning={spinning} rotation={rotation}/>
-      </div>
-
-      {/* Controls */}
-      <div style={{ width:"100%", maxWidth:520, marginTop:20, position:"relative", zIndex:1 }}>
-        {participants.length > 0 ? (
-          <div style={{
-            padding:"16px 20px", background:T.card, border:`1px solid ${T.brd}`,
-            borderRadius:14, marginBottom:4,
-          }}>
-            <div style={{ fontSize:11, fontWeight:700, color:T.mut, letterSpacing:2, marginBottom:10 }}>SIRADAKI</div>
-            <div style={{ fontSize:22, fontWeight:800, color:"#fff" }}>{current}</div>
-            {participants.length > 1 && (
-              <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
-                <span style={{ fontSize:11, color:T.mut, fontWeight:600 }}>Bekleyenler:</span>
-                {participants.slice(1, 6).map(p => (
-                  <span key={p.id} style={{
-                    fontSize:11, color:T.aL, fontWeight:600,
-                    padding:"2px 8px", background:"rgba(59,130,246,.1)",
-                    borderRadius:8, border:`1px solid ${T.brd}`,
-                  }}>{p.name}</span>
-                ))}
-                {participants.length > 6 && (
-                  <span style={{ fontSize:11, color:T.mut, fontWeight:600 }}>+{participants.length - 6} kişi</span>
-                )}
-              </div>
-            )}
+      {/* Main layout — left panel + right wheel */}
+      <div style={{
+        display:"flex", width:"100%", maxWidth:1400, alignItems:"center",
+        gap:40, position:"relative", zIndex:1, flex:1,
+      }}>
+        {/* LEFT — Controls & Results */}
+        <div style={{ width:320, minWidth:280, flexShrink:0, display:"flex", flexDirection:"column", gap:16 }}>
+          <div>
+            <h1 style={{
+              fontSize:32, fontWeight:900, color:"#fff", marginBottom:4,
+              textShadow:`0 0 40px ${T.glow}`, letterSpacing:"-1px",
+              animation:"float 4s ease-in-out infinite",
+            }}>🎡 Çarkıfelek</h1>
+            <p style={{ color:T.mut, fontSize:13, fontWeight:500 }}>Şansını dene, ödülünü kazan!</p>
           </div>
-        ) : (
-          <div style={{
-            padding:"14px 16px", fontSize:14, color:T.mut, background:T.inp,
-            border:`1px solid ${T.brd}`, borderRadius:12, textAlign:"center",
-          }}>Katılımcı yok — panelden ekleyin</div>
-        )}
 
-        <button onClick={spin} disabled={spinning || !prizes.length || !participants.length}
-          style={{
-            width:"100%", marginTop:14, padding:"18px", fontSize:22, fontWeight:900,
-            letterSpacing:"2px", textTransform:"uppercase",
-            background: spinning ? "linear-gradient(135deg,#334155,#1e293b)"
-              : `linear-gradient(135deg,${T.accent},${T.aD})`,
-            color:"#fff", border:"none", borderRadius:16,
-            cursor: (spinning || !prizes.length || !participants.length) ? "not-allowed" : "pointer",
-            boxShadow: spinning ? "none" : `0 8px 48px ${T.glow}`,
-            fontFamily:"'Outfit',sans-serif", transition:"all .3s",
-            opacity: (!prizes.length || !participants.length) ? 0.5 : 1,
-          }}>
-          {spinning ? "⏳ DÖNÜYOR..." : "🎰 ÇARKI ÇEVİR"}
-        </button>
-      </div>
-
-      {/* Last results */}
-      {results.length > 0 && (
-        <div style={{ width:"100%", maxWidth:420, marginTop:28, position:"relative", zIndex:1 }}>
-          <div style={{ fontSize:13, color:T.mut, marginBottom:10, fontWeight:700 }}>🏆 Son Sonuçlar</div>
-          {results.slice(0,4).map(r => (
-            <div key={r.id} style={{
-              display:"flex", alignItems:"center", justifyContent:"space-between",
-              padding:"10px 14px", borderRadius:10, marginBottom:6,
-              background:"rgba(15,23,42,.7)", border:`1px solid ${T.brd}`,
+          {participants.length > 0 ? (
+            <div style={{
+              padding:"16px 20px", background:T.card, border:`1px solid ${T.brd}`,
+              borderRadius:14,
             }}>
-              <span style={{ fontWeight:700 }}>{r.participantName}</span>
-              <span style={{ padding:"3px 12px", borderRadius:20, fontSize:11,
-                fontWeight:700, background:T.accent, color:"#fff" }}>{r.prizeName}</span>
+              <div style={{ fontSize:11, fontWeight:700, color:T.mut, letterSpacing:2, marginBottom:10 }}>SIRADAKI</div>
+              <div style={{ fontSize:22, fontWeight:800, color:"#fff" }}>{current}</div>
+              {participants.length > 1 && (
+                <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:11, color:T.mut, fontWeight:600 }}>Bekleyenler:</span>
+                  {participants.slice(1, 8).map(p => (
+                    <span key={p.id} style={{
+                      fontSize:11, color:T.aL, fontWeight:600,
+                      padding:"2px 8px", background:"rgba(59,130,246,.1)",
+                      borderRadius:8, border:`1px solid ${T.brd}`,
+                    }}>{p.name}</span>
+                  ))}
+                  {participants.length > 8 && (
+                    <span style={{ fontSize:11, color:T.mut, fontWeight:600 }}>+{participants.length - 8} kişi</span>
+                  )}
+                </div>
+              )}
             </div>
-          ))}
+          ) : (
+            <div style={{
+              padding:"14px 16px", fontSize:14, color:T.mut, background:T.inp,
+              border:`1px solid ${T.brd}`, borderRadius:12, textAlign:"center",
+            }}>Katılımcı yok — panelden ekleyin</div>
+          )}
+
+          <button onClick={spin} disabled={spinning || !prizes.length || !participants.length}
+            style={{
+              width:"100%", padding:"18px", fontSize:20, fontWeight:900,
+              letterSpacing:"2px", textTransform:"uppercase",
+              background: spinning ? "linear-gradient(135deg,#334155,#1e293b)"
+                : `linear-gradient(135deg,${T.accent},${T.aD})`,
+              color:"#fff", border:"none", borderRadius:16,
+              cursor: (spinning || !prizes.length || !participants.length) ? "not-allowed" : "pointer",
+              boxShadow: spinning ? "none" : `0 8px 48px ${T.glow}`,
+              fontFamily:"'Outfit',sans-serif", transition:"all .3s",
+              opacity: (!prizes.length || !participants.length) ? 0.5 : 1,
+            }}>
+            {spinning ? "⏳ DÖNÜYOR..." : "🎰 ÇARKI ÇEVİR"}
+          </button>
+
+          {/* Last results */}
+          {results.length > 0 && (
+            <div>
+              <div style={{ fontSize:13, color:T.mut, marginBottom:10, fontWeight:700 }}>🏆 Son Sonuçlar</div>
+              {results.slice(0,6).map(r => (
+                <div key={r.id} style={{
+                  display:"flex", alignItems:"center", justifyContent:"space-between",
+                  padding:"10px 14px", borderRadius:10, marginBottom:6,
+                  background:"rgba(15,23,42,.7)", border:`1px solid ${T.brd}`,
+                }}>
+                  <span style={{ fontWeight:700 }}>{r.participantName}</span>
+                  <span style={{ padding:"3px 12px", borderRadius:20, fontSize:11,
+                    fontWeight:700, background:T.accent, color:"#fff" }}>{r.prizeName}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* RIGHT — Wheel (takes remaining space) */}
+        <div style={{ flex:1, position:"relative" }}>
+          <WheelSVG prizes={prizes} spinning={spinning} rotation={rotation}/>
+        </div>
+      </div>
 
       {/* Winner modal */}
       {winner && !spinning && (
