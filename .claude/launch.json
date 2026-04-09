@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "carkifelek-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/index.js"],
+      "port": 3001
+    },
+    {
       "name": "carkifelek-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],

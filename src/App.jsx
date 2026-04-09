@@ -1,20 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
 /* ═══════════════════════════════════════════════════════
-   STORAGE & SYNC LAYER
-   - Persistent across sessions via localStorage
-   - Cross-tab sync via storage event + polling every 2s
+   API LAYER — SQLite backend via Express
    ═══════════════════════════════════════════════════════ */
-const KEYS = { prizes: "cf-prizes-v2", participants: "cf-parts-v2", results: "cf-results-v2" };
+const API = {
+  prizes: "/api/prizes",
+  participants: "/api/participants",
+  results: "/api/results",
+};
 
-function load(key) {
-  try {
-    const r = localStorage.getItem(key);
-    return r ? JSON.parse(r) : null;
-  } catch { return null; }
-}
-function save(key, data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); } catch (e) { console.error("Save err:", e); }
+async function apiFetch(url, opts) {
+  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
+  return res.json();
 }
 
 let _uid = Date.now();
@@ -32,40 +29,27 @@ const T = {
 const WC = ["#1e3a5f","#3b82f6","#0f172a","#2563eb","#1e293b","#1d4ed8","#0c1929","#60a5fa","#162033","#2980b9","#0b1120","#1565c0"];
 
 /* ═══════════════════════════════════════════════════════
-   useStorage hook — load + poll for live sync
+   useAPI hook — fetch from backend + poll for live sync
    ═══════════════════════════════════════════════════════ */
-function useStorage(key, fallback) {
-  const [data, setData] = useState(() => load(key) ?? fallback);
-  const [loaded, setLoaded] = useState(true);
+function useAPI(endpoint, fallback) {
+  const [data, setData] = useState(fallback);
+  const [loaded, setLoaded] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const d = await apiFetch(endpoint);
+      setData(d);
+      setLoaded(true);
+    } catch (e) { console.error("Fetch err:", e); }
+  }, [endpoint]);
 
   useEffect(() => {
-    let active = true;
-    const poll = () => {
-      const d = load(key);
-      if (active && d !== null) setData(d);
-    };
-    const iv = setInterval(poll, 2000);
+    refresh();
+    const iv = setInterval(refresh, 2000);
+    return () => clearInterval(iv);
+  }, [refresh]);
 
-    const onStorage = (e) => {
-      if (e.key === key && active) {
-        const d = load(key);
-        if (d !== null) setData(d);
-      }
-    };
-    window.addEventListener("storage", onStorage);
-
-    return () => { active = false; clearInterval(iv); window.removeEventListener("storage", onStorage); };
-  }, [key]);
-
-  const update = useCallback((fn) => {
-    setData(prev => {
-      const next = typeof fn === "function" ? fn(prev) : fn;
-      save(key, next);
-      return next;
-    });
-  }, [key]);
-
-  return [data, update, loaded];
+  return [data, setData, loaded, refresh];
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -153,28 +137,24 @@ function WheelSVG({ prizes, spinning, rotation }) {
 /* ═══════════════════════════════════════════════════════
    WHEEL PAGE — Full screen audience view
    ═══════════════════════════════════════════════════════ */
-function WheelPage({ prizes, participants, updateParticipants, results, updateResults, goPanel }) {
+function WheelPage({ prizes, participants, updateParticipants, results, updateResults, refreshResults, refreshParticipants }) {
   const [spinning, setSpinning] = useState(false);
+  const spinLock = useRef(false);
   const [rotation, setRotation] = useState(0);
-  const [current, setCurrent] = useState("");
   const [winner, setWinner] = useState(null);
 
-  useEffect(() => {
-    if (current && !participants.find(p => p.name === current)) setCurrent("");
-  }, [participants, current]);
+  // Auto-queue: always pick the first participant
+  const current = participants.length > 0 ? participants[0].name : "";
 
   const spin = useCallback(() => {
-    if (spinning || !prizes.length) return;
-    if (!current.trim()) {
-      setWinner({ name: "⚠️", prize: "Lütfen bir katılımcı seçin!", warn: true });
-      return;
-    }
+    if (spinLock.current || !prizes.length || !current) return;
+    spinLock.current = true;
     setWinner(null);
     setSpinning(true);
 
     const n = prizes.length;
     const arc = 360 / n;
-    const part = participants.find(p => p.name === current);
+    const part = participants[0];
 
     let winIndex;
 
@@ -188,6 +168,7 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
     } else {
       const normals = prizes.map((p, i) => ({ ...p, _i: i })).filter(p => !p.special);
       if (!normals.length) {
+        spinLock.current = false;
         setSpinning(false);
         setWinner({ name: "⚠️", prize: "Tüm ödüller özel! Bu katılımcıya ödül atanamaz.", warn: true });
         return;
@@ -205,6 +186,7 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
     setRotation(prev => prev + totalAdd);
 
     setTimeout(() => {
+      spinLock.current = false;
       setSpinning(false);
       const wonPrize = prizes[winIndex];
 
@@ -215,13 +197,16 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
         special: wonPrize.special,
         spunAt: new Date().toISOString(),
       };
-      updateResults(prev => [result, ...prev]);
-      updateParticipants(prev => prev.filter(p => p.name !== current));
 
-      setCurrent("");
+      // Save result to DB
+      apiFetch(API.results, { method: "POST", body: JSON.stringify(result) }).then(refreshResults);
+      // Remove participant from DB (auto-advances to next in queue)
+      const partToRemove = participants.find(p => p.name === current);
+      if (partToRemove) apiFetch(`${API.participants}/${partToRemove.id}`, { method: "DELETE" }).then(refreshParticipants);
+
       setWinner({ name: current, prize: wonPrize.name });
     }, 6300);
-  }, [spinning, prizes, current, participants, rotation, updateResults, updateParticipants]);
+  }, [spinning, prizes, current, participants, rotation, refreshResults, refreshParticipants]);
 
   return (
     <div style={{
@@ -249,15 +234,6 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
         }}/>
       ))}
 
-      {/* Panel link */}
-      <button onClick={goPanel} style={{
-        position:"absolute", top:20, right:20, zIndex:20,
-        background:"rgba(59,130,246,.1)", border:`1px solid ${T.brd}`,
-        borderRadius:12, padding:"10px 18px", cursor:"pointer",
-        color:T.mut, fontSize:13, fontWeight:600, fontFamily:"'Outfit',sans-serif",
-        display:"flex", alignItems:"center", gap:8,
-      }}>⚙️ Yönetim Paneli</button>
-
       <h1 style={{
         fontSize:38, fontWeight:900, color:"#fff", marginBottom:6,
         textShadow:`0 0 40px ${T.glow}`, letterSpacing:"-1px",
@@ -272,21 +248,29 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
 
       {/* Controls */}
       <div style={{ width:"100%", maxWidth:420, marginTop:32, position:"relative", zIndex:1 }}>
-        <label style={{ fontSize:12, fontWeight:600, color:T.mut, marginBottom:8, display:"block" }}>🎯 Katılımcı</label>
         {participants.length > 0 ? (
-          <select value={current} onChange={e=>setCurrent(e.target.value)}
-            style={{
-              width:"100%", padding:"14px 16px", fontSize:15,
-              background:T.inp, color:T.txt, border:`1px solid ${T.brd}`,
-              borderRadius:12, fontFamily:"'Outfit',sans-serif", cursor:"pointer", appearance:"auto", outline:"none",
-            }}>
-            <option value="">Katılımcı seçin... ({participants.length} kişi)</option>
-            {participants.map(p => (
-              <option key={p.id} value={p.name}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <div style={{
+            padding:"16px 20px", background:T.card, border:`1px solid ${T.brd}`,
+            borderRadius:14, marginBottom:4,
+          }}>
+            <div style={{ fontSize:11, fontWeight:700, color:T.mut, letterSpacing:2, marginBottom:10 }}>SIRADAKI</div>
+            <div style={{ fontSize:22, fontWeight:800, color:"#fff" }}>{current}</div>
+            {participants.length > 1 && (
+              <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
+                <span style={{ fontSize:11, color:T.mut, fontWeight:600 }}>Bekleyenler:</span>
+                {participants.slice(1, 6).map(p => (
+                  <span key={p.id} style={{
+                    fontSize:11, color:T.aL, fontWeight:600,
+                    padding:"2px 8px", background:"rgba(59,130,246,.1)",
+                    borderRadius:8, border:`1px solid ${T.brd}`,
+                  }}>{p.name}</span>
+                ))}
+                {participants.length > 6 && (
+                  <span style={{ fontSize:11, color:T.mut, fontWeight:600 }}>+{participants.length - 6} kişi</span>
+                )}
+              </div>
+            )}
+          </div>
         ) : (
           <div style={{
             padding:"14px 16px", fontSize:14, color:T.mut, background:T.inp,
@@ -369,7 +353,7 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
 /* ═══════════════════════════════════════════════════════
    ADMIN PANEL PAGE
    ═══════════════════════════════════════════════════════ */
-function PanelPage({ prizes, updatePrizes, participants, updateParticipants, results, updateResults, goWheel }) {
+function PanelPage({ prizes, updatePrizes, participants, updateParticipants, results, updateResults, goWheel, refreshPrizes, refreshParticipants, refreshResults }) {
   const [tab, setTab] = useState("prizes");
 
   const [np, setNp] = useState("");
@@ -385,45 +369,61 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
   const [srP, setSrP] = useState("");
 
   /* ─── Prize CRUD ─── */
-  const addPrize = () => {
+  const addPrize = async () => {
     if (!np.trim()) return;
-    updatePrizes(prev => [...prev, { id: uid(), name: np.trim(), order: prev.length, special: nps }]);
+    await apiFetch(API.prizes, { method: "POST", body: JSON.stringify({ id: uid(), name: np.trim(), order: prizes.length, special: nps }) });
     setNp(""); setNps(false);
+    refreshPrizes();
   };
-  const rmPrize = id => updatePrizes(prev => prev.filter(p => p.id !== id));
+  const rmPrize = async (id) => {
+    await apiFetch(`${API.prizes}/${id}`, { method: "DELETE" });
+    refreshPrizes();
+  };
   const startEdit = p => { setEditId(p.id); setEditVal(p.name); };
-  const saveEdit = id => {
+  const saveEdit = async (id) => {
     if (!editVal.trim()) { setEditId(null); return; }
-    updatePrizes(prev => prev.map(p => p.id === id ? { ...p, name: editVal.trim() } : p));
+    await apiFetch(`${API.prizes}/${id}`, { method: "PUT", body: JSON.stringify({ name: editVal.trim() }) });
     setEditId(null);
+    refreshPrizes();
   };
-  const togSpecial = id => updatePrizes(prev => prev.map(p => p.id === id ? { ...p, special: !p.special } : p));
+  const togSpecial = async (id) => {
+    const p = prizes.find(x => x.id === id);
+    await apiFetch(`${API.prizes}/${id}`, { method: "PUT", body: JSON.stringify({ special: !p.special }) });
+    refreshPrizes();
+  };
 
   /* ─── Participant CRUD ─── */
-  const addParts = () => {
+  const addParts = async () => {
     if (!newP.trim()) return;
     const names = newP.trim().split(/[\s\n]+/).filter(Boolean);
-    updateParticipants(prev => [
-      ...prev,
-      ...names.map(n => ({ id: uid(), name: n, assignedPrize: "", addedAt: new Date().toISOString() }))
-    ]);
+    const items = names.map(n => ({ id: uid(), name: n, assignedPrize: "", addedAt: new Date().toISOString() }));
+    await apiFetch(API.participants, { method: "POST", body: JSON.stringify(items) });
     setNewP("");
+    refreshParticipants();
   };
-  const rmPart = id => updateParticipants(prev => prev.filter(p => p.id !== id));
-  const clearParts = () => updateParticipants([]);
-  const assign = (pid, pn) => updateParticipants(prev => prev.map(p => p.id === pid ? { ...p, assignedPrize: pn } : p));
+  const rmPart = async (id) => {
+    await apiFetch(`${API.participants}/${id}`, { method: "DELETE" });
+    refreshParticipants();
+  };
+  const clearParts = async () => {
+    await apiFetch(API.participants, { method: "DELETE" });
+    refreshParticipants();
+  };
+  const assign = async (pid, pn) => {
+    await apiFetch(`${API.participants}/${pid}`, { method: "PUT", body: JSON.stringify({ assignedPrize: pn }) });
+    refreshParticipants();
+  };
 
   const handleTxt = e => {
     const f = e.target.files?.[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = ev => {
+    r.onload = async (ev) => {
       const t = ev.target?.result;
       if (typeof t === "string") {
         const names = t.split(/[\r\n]+/).map(n => n.trim()).filter(Boolean);
-        updateParticipants(prev => [
-          ...prev,
-          ...names.map(n => ({ id: uid(), name: n, assignedPrize: "", addedAt: new Date().toISOString() }))
-        ]);
+        const items = names.map(n => ({ id: uid(), name: n, assignedPrize: "", addedAt: new Date().toISOString() }));
+        await apiFetch(API.participants, { method: "POST", body: JSON.stringify(items) });
+        refreshParticipants();
       }
     };
     r.readAsText(f); e.target.value = "";
@@ -511,7 +511,7 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
           <div style={card}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
               <span style={{ fontSize:16, fontWeight:700 }}>Mevcut Ödüller ({prizes.length})</span>
-              {prizes.length > 0 && <button style={{...btnD, padding:"6px 14px", fontSize:12}} onClick={()=>updatePrizes([])}>Tümünü Sil</button>}
+              {prizes.length > 0 && <button style={{...btnD, padding:"6px 14px", fontSize:12}} onClick={async()=>{ await apiFetch(API.prizes,{method:"DELETE"}); refreshPrizes(); }}>Tümünü Sil</button>}
             </div>
             {prizes.map((p,i) => (
               <div key={p.id} style={row}>
@@ -620,7 +620,7 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
           <div style={card}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
               <span style={{ fontSize:16, fontWeight:700 }}>Sonuç Filtrele</span>
-              <button style={btnD} onClick={()=>updateResults([])}>Temizle</button>
+              <button style={btnD} onClick={async()=>{ await apiFetch(API.results,{method:"DELETE"}); refreshResults(); }}>Temizle</button>
             </div>
             <div style={{ display:"flex", gap:8 }}>
               <input style={{...inp, flex:1}} placeholder="🔍 Katılımcı ara..." value={srN} onChange={e=>setSrN(e.target.value)}/>
@@ -686,20 +686,103 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
 }
 
 /* ═══════════════════════════════════════════════════════
+   ADMIN LOGIN PAGE
+   ═══════════════════════════════════════════════════════ */
+const ADMIN_PASS = "admin123";
+
+function LoginPage({ onSuccess }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(false);
+
+  const submit = () => {
+    if (pw === ADMIN_PASS) { onSuccess(); }
+    else { setErr(true); setTimeout(() => setErr(false), 1500); }
+  };
+
+  return (
+    <div style={{
+      minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
+      background:"radial-gradient(ellipse at 50% 30%,#0d1b2a 0%,#050510 60%,#000 100%)",
+      fontFamily:"'Outfit',sans-serif",
+    }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+        input:focus{border-color:${T.accent}!important;outline:none}
+      `}</style>
+      <div style={{
+        background:T.card, border:`1px solid ${T.brd}`, borderRadius:20,
+        padding:"48px 44px", width:"100%", maxWidth:380, textAlign:"center",
+        boxShadow:`0 0 80px ${T.glow}`,
+        animation: err ? "shake .4s ease" : "none",
+      }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>🔐</div>
+        <h2 style={{ color:"#fff", fontSize:22, fontWeight:800, marginBottom:6 }}>Yönetim Paneli</h2>
+        <p style={{ color:T.mut, fontSize:13, marginBottom:28 }}>Devam etmek için şifrenizi girin</p>
+        <input
+          type="password" placeholder="Şifre"
+          value={pw} onChange={e => { setPw(e.target.value); setErr(false); }}
+          onKeyDown={e => e.key === "Enter" && submit()}
+          style={{
+            width:"100%", padding:"14px 18px", fontSize:16,
+            background:T.inp, color:T.txt,
+            border:`2px solid ${err ? T.danger : T.brd}`,
+            borderRadius:12, fontFamily:"'Outfit',sans-serif", marginBottom:16,
+            outline:"none", transition:"border-color .2s",
+          }}
+        />
+        {err && <p style={{ color:T.danger, fontSize:13, marginBottom:12, fontWeight:600 }}>Yanlış şifre!</p>}
+        <button onClick={submit} style={{
+          width:"100%", padding:"14px", fontSize:16, fontWeight:700,
+          background:`linear-gradient(135deg,${T.accent},${T.aD})`,
+          color:"#fff", border:"none", borderRadius:12, cursor:"pointer",
+          fontFamily:"'Outfit',sans-serif", boxShadow:`0 6px 30px ${T.glow}`,
+        }}>Giriş Yap</button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
    APP — Router + Shared Storage
    ═══════════════════════════════════════════════════════ */
 export default function App() {
   const [page, setPage] = useState(() => {
-    try { return window.location.hash === "#panel" ? "panel" : "wheel"; } catch { return "wheel"; }
+    try { return window.location.hash === "#panel" ? "login" : "wheel"; } catch { return "wheel"; }
   });
 
-  const [prizes, updatePrizes, prizesLoaded] = useStorage(KEYS.prizes, []);
-  const [participants, updateParticipants] = useStorage(KEYS.participants, []);
-  const [results, updateResults] = useStorage(KEYS.results, []);
+  const [prizes, setPrizes, prizesLoaded, refreshPrizes] = useAPI(API.prizes, []);
+  const [participants, setParticipants, , refreshParticipants] = useAPI(API.participants, []);
+  const [results, setResults, , refreshResults] = useAPI(API.results, []);
+
+  // API-backed updaters
+  const updatePrizes = useCallback(async (fn) => {
+    const next = typeof fn === "function" ? fn(prizes) : fn;
+    if (Array.isArray(next) && next.length === 0) {
+      await apiFetch(API.prizes, { method: "DELETE" });
+    }
+    refreshPrizes();
+  }, [prizes, refreshPrizes]);
+
+  const updateParticipants = useCallback(async (fn) => {
+    const next = typeof fn === "function" ? fn(participants) : fn;
+    if (Array.isArray(next) && next.length === 0) {
+      await apiFetch(API.participants, { method: "DELETE" });
+    }
+    refreshParticipants();
+  }, [participants, refreshParticipants]);
+
+  const updateResults = useCallback(async (fn) => {
+    const next = typeof fn === "function" ? fn(results) : fn;
+    if (Array.isArray(next) && next.length === 0) {
+      await apiFetch(API.results, { method: "DELETE" });
+    }
+    refreshResults();
+  }, [results, refreshResults]);
 
   const navigate = useCallback((p) => {
     setPage(p);
-    try { window.location.hash = p === "panel" ? "#panel" : "#wheel"; } catch {}
+    try { window.location.hash = p === "panel" ? "#panel" : p === "login" ? "#panel" : "#wheel"; } catch {}
   }, []);
 
   if (!prizesLoaded) {
@@ -718,11 +801,16 @@ export default function App() {
     );
   }
 
+  if (page === "login") {
+    return <LoginPage onSuccess={() => navigate("panel")} />;
+  }
+
   if (page === "panel") {
     return <PanelPage
       prizes={prizes} updatePrizes={updatePrizes}
       participants={participants} updateParticipants={updateParticipants}
       results={results} updateResults={updateResults}
+      refreshPrizes={refreshPrizes} refreshParticipants={refreshParticipants} refreshResults={refreshResults}
       goWheel={() => navigate("wheel")}
     />;
   }
@@ -731,6 +819,6 @@ export default function App() {
     prizes={prizes}
     participants={participants} updateParticipants={updateParticipants}
     results={results} updateResults={updateResults}
-    goPanel={() => navigate("panel")}
+    refreshResults={refreshResults} refreshParticipants={refreshParticipants}
   />;
 }
