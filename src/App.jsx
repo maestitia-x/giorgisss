@@ -234,13 +234,18 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
         }}/>
       ))}
 
-      {/* Main layout — left panel + right wheel */}
+      {/* Main layout — left wheel (80%) + right panel (20%) */}
       <div style={{
-        display:"flex", width:"100%", maxWidth:1400, alignItems:"center",
-        gap:40, position:"relative", zIndex:1, flex:1,
+        display:"flex", width:"100%", maxWidth:1600, alignItems:"center",
+        gap:24, position:"relative", zIndex:1, flex:1,
       }}>
-        {/* LEFT — Controls & Results */}
-        <div style={{ width:320, minWidth:280, flexShrink:0, display:"flex", flexDirection:"column", gap:16 }}>
+        {/* LEFT — Wheel (80%) */}
+        <div style={{ flex:"0 0 80%", position:"relative" }}>
+          <WheelSVG prizes={prizes} spinning={spinning} rotation={rotation}/>
+        </div>
+
+        {/* RIGHT — Controls & Results (20%) */}
+        <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:16 }}>
           <div>
             <h1 style={{
               fontSize:32, fontWeight:900, color:"#fff", marginBottom:4,
@@ -314,10 +319,6 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
           )}
         </div>
 
-        {/* RIGHT — Wheel (takes remaining space) */}
-        <div style={{ flex:1, position:"relative" }}>
-          <WheelSVG prizes={prizes} spinning={spinning} rotation={rotation}/>
-        </div>
       </div>
 
       {/* Winner modal */}
