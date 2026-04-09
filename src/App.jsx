@@ -55,7 +55,7 @@ function useAPI(endpoint, fallback) {
 /* ═══════════════════════════════════════════════════════
    SVG WHEEL — precise slice rendering
    ═══════════════════════════════════════════════════════ */
-function WheelSVG({ prizes, spinning, rotation }) {
+function WheelSVG({ prizes, spinning, rotation, onSpin }) {
   const n = prizes.length;
   if (!n) return (
     <div style={{ width:"100%", aspectRatio:"1", borderRadius:"50%", margin:"0 auto",
@@ -123,12 +123,14 @@ function WheelSVG({ prizes, spinning, rotation }) {
             </g>
           );
         })}
-        {/* Center hub */}
-        <circle cx={cx} cy={cy} r="32" fill="#070710" stroke={T.accent} strokeWidth="3" filter="url(#gl)"/>
-        <circle cx={cx} cy={cy} r="22" fill={T.accent}/>
-        <text x={cx} y={cy+1} fill="#fff" fontSize="10" fontWeight="900"
-          textAnchor="middle" dominantBaseline="middle"
-          style={{fontFamily:"'Outfit',sans-serif",letterSpacing:"1.5px"}}>SPIN</text>
+        {/* Center hub — clickable */}
+        <g onClick={onSpin} style={{ cursor: onSpin ? "pointer" : "default" }}>
+          <circle cx={cx} cy={cy} r="32" fill="#070710" stroke={T.accent} strokeWidth="3" filter="url(#gl)"/>
+          <circle cx={cx} cy={cy} r="22" fill={T.accent}/>
+          <text x={cx} y={cy+1} fill="#fff" fontSize="9" fontWeight="900"
+            textAnchor="middle" dominantBaseline="middle" pointerEvents="none"
+            style={{fontFamily:"'Outfit',sans-serif",letterSpacing:"1px"}}>ÇEVİR</text>
+        </g>
       </svg>
     </div>
   );
@@ -241,7 +243,7 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
       }}>
         {/* LEFT — Wheel (80%) */}
         <div style={{ flex:"0 0 80%", position:"relative" }}>
-          <WheelSVG prizes={prizes} spinning={spinning} rotation={rotation}/>
+          <WheelSVG prizes={prizes} spinning={spinning} rotation={rotation} onSpin={spin}/>
         </div>
 
         {/* RIGHT — Controls & Results (20%) */}
@@ -251,7 +253,7 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
               fontSize:32, fontWeight:900, color:"#fff", marginBottom:4,
               textShadow:`0 0 40px ${T.glow}`, letterSpacing:"-1px",
               animation:"float 4s ease-in-out infinite",
-            }}>🎡 Çarkıfelek</h1>
+            }}>🎡 giorgissss</h1>
             <p style={{ color:T.mut, fontSize:13, fontWeight:500 }}>Şansını dene, ödülünü kazan!</p>
           </div>
 
