@@ -58,7 +58,7 @@ function useAPI(endpoint, fallback) {
 function WheelSVG({ prizes, spinning, rotation }) {
   const n = prizes.length;
   if (!n) return (
-    <div style={{ width:"100%", maxWidth:480, aspectRatio:"1", borderRadius:"50%", margin:"0 auto",
+    <div style={{ width:"100%", maxWidth:680, aspectRatio:"1", borderRadius:"50%", margin:"0 auto",
       background:"radial-gradient(circle,#1e293b,#0a0a12)", display:"flex", alignItems:"center",
       justifyContent:"center", border:`3px dashed ${T.brd}` }}>
       <span style={{ color:T.mut, fontSize:17, textAlign:"center", padding:40, lineHeight:1.7 }}>
@@ -70,7 +70,7 @@ function WheelSVG({ prizes, spinning, rotation }) {
   const arc = 360 / n, r = 190, cx = 200, cy = 200;
 
   return (
-    <div style={{ position:"relative", width:"100%", maxWidth:480, margin:"0 auto" }}>
+    <div style={{ position:"relative", width:"100%", maxWidth:680, margin:"0 auto" }}>
       {/* Pointer — fixed at top */}
       <div style={{
         position:"absolute", top:-4, left:"50%", transform:"translateX(-50%)", zIndex:10,
@@ -212,7 +212,7 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
     <div style={{
       minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
       background:"radial-gradient(ellipse at 50% 30%,#0d1b2a 0%,#050510 60%,#000 100%)",
-      fontFamily:"'Outfit',sans-serif", color:T.txt, padding:"24px", position:"relative", overflow:"hidden",
+      fontFamily:"'Outfit',sans-serif", color:T.txt, padding:"16px", position:"relative", overflow:"hidden",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
@@ -239,15 +239,15 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
         textShadow:`0 0 40px ${T.glow}`, letterSpacing:"-1px",
         animation:"float 4s ease-in-out infinite",
       }}>🎡 Çarkıfelek</h1>
-      <p style={{ color:T.mut, fontSize:14, marginBottom:32, fontWeight:500 }}>Şansını dene, ödülünü kazan!</p>
+      <p style={{ color:T.mut, fontSize:14, marginBottom:16, fontWeight:500 }}>Şansını dene, ödülünü kazan!</p>
 
       {/* Wheel */}
-      <div style={{ width:"100%", maxWidth:480, position:"relative", zIndex:1 }}>
+      <div style={{ width:"100%", maxWidth:680, position:"relative", zIndex:1 }}>
         <WheelSVG prizes={prizes} spinning={spinning} rotation={rotation}/>
       </div>
 
       {/* Controls */}
-      <div style={{ width:"100%", maxWidth:420, marginTop:32, position:"relative", zIndex:1 }}>
+      <div style={{ width:"100%", maxWidth:520, marginTop:20, position:"relative", zIndex:1 }}>
         {participants.length > 0 ? (
           <div style={{
             padding:"16px 20px", background:T.card, border:`1px solid ${T.brd}`,
