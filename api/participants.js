@@ -9,11 +9,13 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const items = Array.isArray(req.body) ? req.body : [req.body];
+    if (!req.body) return res.status(400).json({ error: "body is required" });
+    const items = (Array.isArray(req.body) ? req.body : [req.body]).filter(p => p.name?.trim());
+    if (!items.length) return res.status(400).json({ error: "name is required" });
     for (const p of items) {
       await db.execute({
         sql: "INSERT INTO participants (id, name, assigned_prize, added_at) VALUES (?, ?, ?, ?)",
-        args: [p.id, p.name, p.assignedPrize || "", p.addedAt || new Date().toISOString()],
+        args: [p.id, p.name.trim(), p.assignedPrize || "", p.addedAt || new Date().toISOString()],
       });
     }
     return res.json({ ok: true });

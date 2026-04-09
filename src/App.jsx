@@ -10,8 +10,10 @@ const API = {
 };
 
 async function apiFetch(url, opts) {
-  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
-  return res.json();
+  try {
+    const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
+    return await res.json();
+  } catch (e) { console.error("Fetch err:", e); return null; }
 }
 
 let _uid = Date.now();
@@ -223,6 +225,7 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
         @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
         @keyframes particleDrift{0%{transform:translateY(0)scale(1);opacity:.5}100%{transform:translateY(-100vh)scale(0);opacity:0}}
         button:hover{filter:brightness(1.15)} select:focus,input:focus{border-color:${T.accent}!important;outline:none}
+        @media(max-width:768px){.wheel-layout{flex-direction:column-reverse!important;gap:16px!important}.wheel-layout>div:first-child{flex:none!important;width:100%!important;max-width:100%!important}}
       `}</style>
 
       {/* Ambient particles */}
@@ -237,7 +240,7 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
       ))}
 
       {/* Main layout — left wheel (80%) + right panel (20%) */}
-      <div style={{
+      <div className="wheel-layout" style={{
         display:"flex", width:"100%", maxWidth:1600, alignItems:"center",
         gap:24, position:"relative", zIndex:1, flex:1,
       }}>

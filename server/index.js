@@ -14,8 +14,9 @@ app.get("/api/prizes", (req, res) => {
 });
 
 app.post("/api/prizes", (req, res) => {
-  const { id, name, order, special } = req.body;
-  db.prepare('INSERT INTO prizes (id, name, "order", special) VALUES (?, ?, ?, ?)').run(id, name, order ?? 0, special ? 1 : 0);
+  const { id, name, order, special } = req.body ?? {};
+  if (!name?.trim()) return res.status(400).json({ error: "name is required" });
+  db.prepare('INSERT INTO prizes (id, name, "order", special) VALUES (?, ?, ?, ?)').run(id, name.trim(), order ?? 0, special ? 1 : 0);
   res.json({ ok: true });
 });
 
@@ -44,11 +45,14 @@ app.get("/api/participants", (req, res) => {
 });
 
 app.post("/api/participants", (req, res) => {
+  if (!req.body) return res.status(400).json({ error: "body is required" });
   const insert = db.prepare("INSERT INTO participants (id, name, assigned_prize, added_at) VALUES (?, ?, ?, ?)");
   const items = Array.isArray(req.body) ? req.body : [req.body];
+  const valid = items.filter(p => p.name?.trim());
+  if (!valid.length) return res.status(400).json({ error: "name is required" });
   const tx = db.transaction(() => {
-    for (const p of items) {
-      insert.run(p.id, p.name, p.assignedPrize || "", p.addedAt || new Date().toISOString());
+    for (const p of valid) {
+      insert.run(p.id, p.name.trim(), p.assignedPrize || "", p.addedAt || new Date().toISOString());
     }
   });
   tx();

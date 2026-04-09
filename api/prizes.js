@@ -9,10 +9,11 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const { id, name, order, special } = req.body;
+    const { id, name, order, special } = req.body ?? {};
+    if (!name?.trim()) return res.status(400).json({ error: "name is required" });
     await db.execute({
       sql: 'INSERT INTO prizes (id, name, "order", special) VALUES (?, ?, ?, ?)',
-      args: [id, name, order ?? 0, special ? 1 : 0],
+      args: [id, name.trim(), order ?? 0, special ? 1 : 0],
     });
     return res.json({ ok: true });
   }
