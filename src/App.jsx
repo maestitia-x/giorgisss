@@ -28,7 +28,10 @@ const T = {
   aD: "#1d4ed8", glow: "rgba(59,130,246,0.35)", danger: "#ef4444",
   txt: "#e2e8f0", mut: "#64748b", brd: "rgba(59,130,246,0.15)",
 };
-const WC = ["#1e3a5f","#3b82f6","#0f172a","#2563eb","#1e293b","#1d4ed8","#0c1929","#60a5fa","#162033","#2980b9","#0b1120","#1565c0"];
+// İki uyumlu mavi tonu — temiz ve dengeli alternatif desen
+const WC = ["#2563eb", "#0c1929"];
+// Tek sayılı dilimde yan yana aynı renk gelmesin diye 3. ton (yalnız son dilim için)
+const WC_ODD_END = "#1e3a8a";
 
 /* ═══════════════════════════════════════════════════════
    useAPI hook — fetch from backend + poll for live sync
@@ -114,10 +117,12 @@ function WheelSVG({ prizes, spinning, rotation, onSpin }) {
           const lx = cx + textR * Math.cos(midRad);
           const ly = cy + textR * Math.sin(midRad);
           const textRot = midDeg + 90;
+          // Tek sayılı dilim sayısında son dilim için ara ton kullan ki yan yana aynı renk gelmesin
+          const sliceColor = (n % 2 === 1 && i === n - 1) ? WC_ODD_END : WC[i % 2];
           return (
             <g key={p.id}>
-              <path d={d} fill={WC[i%WC.length]} stroke="#060610" strokeWidth="1.5"/>
-              <path d={d} fill="url(#sh)" opacity=".4"/>
+              <path d={d} fill={sliceColor} stroke="#020410" strokeWidth="2"/>
+              <path d={d} fill="url(#sh)" opacity=".35"/>
               <text x={lx} y={ly} fill="#fff"
                 fontSize={n>12?"8":n>8?"10":n>5?"12":"14"} fontWeight="700"
                 textAnchor="start" dominantBaseline="middle"
@@ -533,7 +538,7 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
             {prizes.map((p,i) => (
               <div key={p.id} style={row}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, flex:1, minWidth:0 }}>
-                  <div style={{ width:16, height:16, borderRadius:4, background:WC[i%WC.length], border:"1px solid rgba(255,255,255,.1)", flexShrink:0 }}/>
+                  <div style={{ width:16, height:16, borderRadius:4, background:(prizes.length % 2 === 1 && i === prizes.length - 1) ? WC_ODD_END : WC[i%2], border:"1px solid rgba(255,255,255,.1)", flexShrink:0 }}/>
                   {editId === p.id ? (
                     <input style={{...inp, flex:1, padding:"6px 10px", fontSize:13}} value={editVal}
                       onChange={e=>setEditVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveEdit(p.id)}
