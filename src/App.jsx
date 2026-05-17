@@ -108,19 +108,22 @@ function WheelSVG({ prizes, spinning, rotation, onSpin }) {
           const x1=cx+r*Math.cos(sa), y1=cy+r*Math.sin(sa);
           const x2=cx+r*Math.cos(ea), y2=cy+r*Math.sin(ea);
           const d = `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${arc>180?1:0},1 ${x2},${y2} Z`;
-          const ma = ((i*arc+arc/2)-90)*Math.PI/180;
-          const lr = r * (n > 8 ? 0.55 : 0.6);
-          const lx = cx+lr*Math.cos(ma), ly = cy+lr*Math.sin(ma);
+          const midDeg = i * arc + arc / 2;
+          const midRad = (midDeg - 90) * Math.PI / 180;
+          const textR = r * 0.90;
+          const lx = cx + textR * Math.cos(midRad);
+          const ly = cy + textR * Math.sin(midRad);
+          const textRot = midDeg + 90;
           return (
             <g key={p.id}>
               <path d={d} fill={WC[i%WC.length]} stroke="#060610" strokeWidth="1.5"/>
               <path d={d} fill="url(#sh)" opacity=".4"/>
               <text x={lx} y={ly} fill="#fff"
-                fontSize={n>12?"7":n>8?"9":n>5?"11":"13"} fontWeight="700"
-                textAnchor="middle" dominantBaseline="middle"
-                transform={`rotate(${i*arc+arc/2},${lx},${ly})`}
+                fontSize={n>12?"8":n>8?"10":n>5?"12":"14"} fontWeight="700"
+                textAnchor="start" dominantBaseline="middle"
+                transform={`rotate(${textRot},${lx},${ly})`}
                 style={{textShadow:"0 2px 4px rgba(0,0,0,.9)",fontFamily:"'Outfit',sans-serif"}}>
-                {p.name.length > (n>8?10:14) ? p.name.slice(0, n>8?9:13)+"…" : p.name}
+                {p.name.length > (n>8?16:20) ? p.name.slice(0, n>8?15:19)+"…" : p.name}
               </text>
             </g>
           );
