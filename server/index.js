@@ -10,20 +10,25 @@ app.use(express.json());
 
 app.get("/api/prizes", (req, res) => {
   const rows = db.prepare('SELECT * FROM prizes ORDER BY "order" ASC').all();
-  res.json(rows.map(r => ({ ...r, special: !!r.special })));
+  res.json(rows.map(r => ({ ...r, special: !!r.special, weight: r.weight ?? 1 })));
 });
 
 app.post("/api/prizes", (req, res) => {
-  const { id, name, order, special } = req.body ?? {};
+  const { id, name, order, special, weight } = req.body ?? {};
   if (!name?.trim()) return res.status(400).json({ error: "name is required" });
-  db.prepare('INSERT INTO prizes (id, name, "order", special) VALUES (?, ?, ?, ?)').run(id, name.trim(), order ?? 0, special ? 1 : 0);
+  const w = Math.max(0.05, Number(weight) || 1);
+  db.prepare('INSERT INTO prizes (id, name, "order", special, weight) VALUES (?, ?, ?, ?, ?)').run(id, name.trim(), order ?? 0, special ? 1 : 0, w);
   res.json({ ok: true });
 });
 
 app.put("/api/prizes/:id", (req, res) => {
-  const { name, special } = req.body;
+  const { name, special, weight } = req.body;
   if (name !== undefined) db.prepare("UPDATE prizes SET name = ? WHERE id = ?").run(name, req.params.id);
   if (special !== undefined) db.prepare("UPDATE prizes SET special = ? WHERE id = ?").run(special ? 1 : 0, req.params.id);
+  if (weight !== undefined) {
+    const w = Math.max(0.05, Number(weight) || 1);
+    db.prepare("UPDATE prizes SET weight = ? WHERE id = ?").run(w, req.params.id);
+  }
   res.json({ ok: true });
 });
 

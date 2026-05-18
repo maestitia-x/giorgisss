@@ -72,7 +72,17 @@ function WheelSVG({ prizes, spinning, rotation, onSpin }) {
     </div>
   );
 
-  const arc = 360 / n, r = 190, cx = 200, cy = 200;
+  const r = 190, cx = 200, cy = 200;
+
+  // Weight-based variable arcs
+  const weights = prizes.map(p => Math.max(0.05, Number(p.weight) || 1));
+  const totalW = weights.reduce((a, b) => a + b, 0);
+  const arcs = weights.map(w => (w / totalW) * 360);
+  // Cumulative start angle for each slice (0 = top)
+  const cumStart = arcs.reduce((acc, _a, i) => {
+    acc.push(i === 0 ? 0 : acc[i - 1] + arcs[i - 1]);
+    return acc;
+  }, []);
 
   return (
     <div style={{ position:"relative", width:"100%", margin:"0 auto" }}>
@@ -99,19 +109,23 @@ function WheelSVG({ prizes, spinning, rotation, onSpin }) {
         {/* Outer rings */}
         <circle cx={cx} cy={cy} r={r+9} fill="none" stroke={T.accent} strokeWidth="2" opacity=".3"/>
         <circle cx={cx} cy={cy} r={r+5} fill="none" stroke={T.aD} strokeWidth="3"/>
-        {/* Tick marks */}
+        {/* Tick marks — at each slice boundary */}
         {prizes.map((_,i) => {
-          const a = (i*arc-90)*Math.PI/180;
+          const a = (cumStart[i] - 90) * Math.PI / 180;
           return <line key={i} x1={cx+(r+1)*Math.cos(a)} y1={cy+(r+1)*Math.sin(a)}
             x2={cx+(r+9)*Math.cos(a)} y2={cy+(r+9)*Math.sin(a)} stroke={T.aL} strokeWidth="2" opacity=".5"/>;
         })}
         {/* Slices */}
         {prizes.map((p,i) => {
-          const sa = (i*arc-90)*Math.PI/180, ea = ((i+1)*arc-90)*Math.PI/180;
+          const startDeg = cumStart[i];
+          const arcDeg = arcs[i];
+          const endDeg = startDeg + arcDeg;
+          const sa = (startDeg - 90) * Math.PI / 180;
+          const ea = (endDeg - 90) * Math.PI / 180;
           const x1=cx+r*Math.cos(sa), y1=cy+r*Math.sin(sa);
           const x2=cx+r*Math.cos(ea), y2=cy+r*Math.sin(ea);
-          const d = `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${arc>180?1:0},1 ${x2},${y2} Z`;
-          const midDeg = i * arc + arc / 2;
+          const d = `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${arcDeg>180?1:0},1 ${x2},${y2} Z`;
+          const midDeg = startDeg + arcDeg / 2;
           const midRad = (midDeg - 90) * Math.PI / 180;
           const textR = r * 0.90;
           const lx = cx + textR * Math.cos(midRad);
@@ -119,16 +133,22 @@ function WheelSVG({ prizes, spinning, rotation, onSpin }) {
           const textRot = midDeg + 90;
           // Tek sayılı dilim sayısında son dilim için ara ton kullan ki yan yana aynı renk gelmesin
           const sliceColor = (n % 2 === 1 && i === n - 1) ? WC_ODD_END : WC[i % 2];
+          // Font size: dar dilimlerde küçülsün ki taşmasın
+          const baseFS = n>12?8:n>8?10:n>5?12:14;
+          const narrowFS = Math.max(6, Math.min(baseFS, Math.round(arcDeg * 0.9)));
+          // Max characters: slice'ın arcDeg'ine göre dinamik (dar dilim = kısa metin)
+          const maxChars = Math.max(4, Math.min(22, Math.round(arcDeg * 0.85)));
+          const displayName = p.name.length > maxChars ? p.name.slice(0, maxChars - 1) + "…" : p.name;
           return (
             <g key={p.id}>
               <path d={d} fill={sliceColor} stroke="#020410" strokeWidth="2"/>
               <path d={d} fill="url(#sh)" opacity=".35"/>
               <text x={lx} y={ly} fill="#fff"
-                fontSize={n>12?"8":n>8?"10":n>5?"12":"14"} fontWeight="700"
+                fontSize={narrowFS} fontWeight="700"
                 textAnchor="start" dominantBaseline="middle"
                 transform={`rotate(${textRot},${lx},${ly})`}
                 style={{textShadow:"0 2px 4px rgba(0,0,0,.9)",fontFamily:"'Outfit',sans-serif"}}>
-                {p.name.length > (n>8?16:20) ? p.name.slice(0, n>8?15:19)+"…" : p.name}
+                {displayName}
               </text>
             </g>
           );
@@ -165,7 +185,6 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
     setSpinning(true);
 
     const n = prizes.length;
-    const arc = 360 / n;
     const part = participants[0];
 
     let winIndex;
@@ -188,7 +207,14 @@ function WheelPage({ prizes, participants, updateParticipants, results, updateRe
       winIndex = normals[Math.floor(Math.random() * normals.length)]._i;
     }
 
-    const targetAngle = (360 - (winIndex * arc + arc / 2) + 360) % 360;
+    // Weight-based slice positions — kazanan dilimin tam ortasına denk gel
+    const weights = prizes.map(p => Math.max(0.05, Number(p.weight) || 1));
+    const totalW = weights.reduce((a, b) => a + b, 0);
+    const arcs = weights.map(w => (w / totalW) * 360);
+    let winStart = 0;
+    for (let j = 0; j < winIndex; j++) winStart += arcs[j];
+    const winMid = winStart + arcs[winIndex] / 2;
+    const targetAngle = (360 - winMid + 360) % 360;
     const currentMod = ((rotation % 360) + 360) % 360;
     let delta = targetAngle - currentMod;
     if (delta <= 0) delta += 360;
@@ -380,6 +406,7 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
 
   const [np, setNp] = useState("");
   const [nps, setNps] = useState(false);
+  const [nw, setNw] = useState("1");
   const [editId, setEditId] = useState(null);
   const [editVal, setEditVal] = useState("");
 
@@ -393,8 +420,9 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
   /* ─── Prize CRUD ─── */
   const addPrize = async () => {
     if (!np.trim()) return;
-    await apiFetch(API.prizes, { method: "POST", body: JSON.stringify({ id: uid(), name: np.trim(), order: prizes.length, special: nps }) });
-    setNp(""); setNps(false);
+    const weight = Math.max(0.05, Number(nw) || 1);
+    await apiFetch(API.prizes, { method: "POST", body: JSON.stringify({ id: uid(), name: np.trim(), order: prizes.length, special: nps, weight }) });
+    setNp(""); setNps(false); setNw("1");
     refreshPrizes();
   };
   const rmPrize = async (id) => {
@@ -411,6 +439,11 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
   const togSpecial = async (id) => {
     const p = prizes.find(x => x.id === id);
     await apiFetch(`${API.prizes}/${id}`, { method: "PUT", body: JSON.stringify({ special: !p.special }) });
+    refreshPrizes();
+  };
+  const updateWeight = async (id, w) => {
+    const weight = Math.max(0.05, Number(w) || 1);
+    await apiFetch(`${API.prizes}/${id}`, { method: "PUT", body: JSON.stringify({ weight }) });
     refreshPrizes();
   };
 
@@ -520,13 +553,17 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
             <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
               <input style={{...inp, flex:"1 1 200px"}} placeholder="Ödül adı yazın..."
                 value={np} onChange={e=>setNp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPrize()}/>
+              <input style={{...inp, width:90, flex:"0 0 90px"}} type="number" min="0.05" step="0.05" placeholder="Boyut"
+                value={nw} onChange={e=>setNw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPrize()}
+                title="Dilim boyutu: 1 = normal, 0.3 = küçük (nadir görünüm), 2 = büyük"/>
               <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:13, color:T.mut, cursor:"pointer", padding:"0 8px", whiteSpace:"nowrap" }}>
                 <input type="checkbox" checked={nps} onChange={e=>setNps(e.target.checked)} style={{accentColor:T.accent, width:16, height:16}}/> ⭐ Özel
               </label>
               <button style={btn} onClick={addPrize}>+ Ekle</button>
             </div>
             <p style={{ fontSize:12, color:T.mut, marginTop:10 }}>
-              ⭐ Özel ödüller sadece atanmış kişilere çıkar, rastgele çevirmede <strong>asla</strong> çıkmaz.
+              ⭐ Özel ödüller sadece atanmış kişilere çıkar, rastgele çevirmede <strong>asla</strong> çıkmaz.<br/>
+              📏 <strong>Boyut</strong>: Dilim büyüklüğü. <code>1</code> = normal, <code>0.3</code> = küçük (nadir/değerli görünüm), <code>2</code> = büyük. Kazanma şansını <em>değiştirmez</em>, sadece görsel inandırıcılık.
             </p>
           </div>
 
@@ -549,7 +586,16 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
                   )}
                   {p.special && <span style={{ fontSize:11, color:"#f59e0b", fontWeight:600, whiteSpace:"nowrap" }}>⭐ Özel</span>}
                 </div>
-                <div style={{ display:"flex", gap:5, flexShrink:0 }}>
+                <div style={{ display:"flex", gap:5, flexShrink:0, alignItems:"center" }}>
+                  <span style={{ fontSize:10, color:T.mut, fontWeight:600, marginRight:2 }}>📏</span>
+                  <input
+                    type="number" min="0.05" step="0.05"
+                    defaultValue={p.weight ?? 1}
+                    onBlur={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v !== (p.weight ?? 1)) updateWeight(p.id, v); }}
+                    onKeyDown={e => { if (e.key === "Enter") e.target.blur(); }}
+                    title="Dilim boyutu (1 = normal). Sadece görsel, kazanma şansını değiştirmez."
+                    style={{ width:54, background:T.inp, color:T.txt, border:`1px solid ${T.brd}`, borderRadius:6, padding:"4px 6px", fontSize:12, fontFamily:"'Outfit',sans-serif", textAlign:"center", outline:"none" }}
+                  />
                   <button onClick={()=>togSpecial(p.id)} title={p.special?"Normal yap":"Özel yap"}
                     style={{ background:p.special?"rgba(245,158,11,.2)":"rgba(255,255,255,.05)", border:"none", borderRadius:6, padding:"5px 8px", cursor:"pointer", fontSize:13 }}>⭐</button>
                   <button onClick={()=>startEdit(p)} title="Düzenle"

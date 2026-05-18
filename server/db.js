@@ -14,6 +14,7 @@ db.exec(`
     name TEXT NOT NULL,
     "order" INTEGER DEFAULT 0,
     special INTEGER DEFAULT 0,
+    weight REAL DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now'))
   );
 
@@ -32,5 +33,11 @@ db.exec(`
     spun_at TEXT DEFAULT (datetime('now'))
   );
 `);
+
+// Migration: add weight column if it doesn't exist (for existing DBs)
+const prizeCols = db.prepare("PRAGMA table_info(prizes)").all();
+if (!prizeCols.some(c => c.name === "weight")) {
+  db.exec("ALTER TABLE prizes ADD COLUMN weight REAL DEFAULT 1");
+}
 
 export default db;

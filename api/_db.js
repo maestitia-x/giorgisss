@@ -20,6 +20,7 @@ export async function initDB() {
       name TEXT NOT NULL,
       "order" INTEGER DEFAULT 0,
       special INTEGER DEFAULT 0,
+      weight REAL DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS participants (
@@ -36,5 +37,12 @@ export async function initDB() {
       spun_at TEXT DEFAULT (datetime('now'))
     );
   `);
+  // Migration: add weight column for pre-existing DBs
+  try {
+    const info = await db.execute("PRAGMA table_info(prizes)");
+    if (!info.rows.some(c => c.name === "weight")) {
+      await db.execute("ALTER TABLE prizes ADD COLUMN weight REAL DEFAULT 1");
+    }
+  } catch (e) { console.error("weight migration failed:", e); }
   return db;
 }
