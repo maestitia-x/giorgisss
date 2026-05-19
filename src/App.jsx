@@ -497,6 +497,37 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
     await apiFetch(`${API.prizes}/${id}`, { method: "PUT", body: JSON.stringify({ weight }) });
     refreshPrizes();
   };
+  // Fisher-Yates random shuffle — dilim pozisyonlarını rastgele dağıt
+  const shufflePrizes = async () => {
+    if (!prizes.length) return;
+    const shuffled = [...prizes];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    await Promise.all(shuffled.map((p, idx) =>
+      apiFetch(`${API.prizes}/${p.id}`, { method: "PUT", body: JSON.stringify({ order: idx }) })
+    ));
+    refreshPrizes();
+  };
+  // Akıllı dağıtım — benzer ağırlıkları yan yana getirmemeye çalış
+  // Ağırlığa göre azalan sıraya diz, sonra altın oran açısıyla yerleştir
+  const spreadPrizes = async () => {
+    if (!prizes.length) return;
+    const sorted = [...prizes].sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1));
+    const n = sorted.length;
+    const golden = 137.508 / 360; // golden angle ratio
+    const result = new Array(n);
+    for (let i = 0; i < n; i++) {
+      let pos = Math.floor((i * golden * n) % n);
+      while (result[pos] !== undefined) pos = (pos + 1) % n;
+      result[pos] = sorted[i];
+    }
+    await Promise.all(result.map((p, idx) =>
+      apiFetch(`${API.prizes}/${p.id}`, { method: "PUT", body: JSON.stringify({ order: idx }) })
+    ));
+    refreshPrizes();
+  };
 
   /* ─── Participant CRUD ─── */
   const addParts = async () => {
@@ -619,9 +650,18 @@ function PanelPage({ prizes, updatePrizes, participants, updateParticipants, res
           </div>
 
           <div style={card}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, gap:8, flexWrap:"wrap" }}>
               <span style={{ fontSize:16, fontWeight:700 }}>Mevcut Ödüller ({prizes.length})</span>
-              {prizes.length > 0 && <button style={{...btnD, padding:"6px 14px", fontSize:12}} onClick={async()=>{ await apiFetch(API.prizes,{method:"DELETE"}); refreshPrizes(); }}>Tümünü Sil</button>}
+              {prizes.length > 1 && (
+                <div style={{ display:"flex", gap:6 }}>
+                  <button style={{...btnG, padding:"6px 12px", fontSize:12}} onClick={shufflePrizes}
+                    title="Dilim sıralamasını rastgele karıştır">🔀 Karıştır</button>
+                  <button style={{...btnG, padding:"6px 12px", fontSize:12}} onClick={spreadPrizes}
+                    title="Akıllı dağıtım: benzer ağırlıkları yan yana getirme">⚖️ Akıllı Dağıt</button>
+                  <button style={{...btnD, padding:"6px 14px", fontSize:12}} onClick={async()=>{ await apiFetch(API.prizes,{method:"DELETE"}); refreshPrizes(); }}>Tümünü Sil</button>
+                </div>
+              )}
+              {prizes.length === 1 && <button style={{...btnD, padding:"6px 14px", fontSize:12}} onClick={async()=>{ await apiFetch(API.prizes,{method:"DELETE"}); refreshPrizes(); }}>Tümünü Sil</button>}
             </div>
             {prizes.map((p,i) => (
               <div key={p.id} style={row}>

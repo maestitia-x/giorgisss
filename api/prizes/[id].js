@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   const { id } = req.query;
 
   if (req.method === "PUT") {
-    const { name, special, weight } = req.body;
+    const { name, special, weight, order } = req.body;
     if (name !== undefined) {
       await db.execute({ sql: "UPDATE prizes SET name = ? WHERE id = ?", args: [name, id] });
     }
@@ -15,6 +15,9 @@ export default async function handler(req, res) {
     if (weight !== undefined) {
       const w = Math.max(0.05, Number(weight) || 1);
       await db.execute({ sql: "UPDATE prizes SET weight = ? WHERE id = ?", args: [w, id] });
+    }
+    if (order !== undefined) {
+      await db.execute({ sql: 'UPDATE prizes SET "order" = ? WHERE id = ?', args: [Number(order) || 0, id] });
     }
     return res.json({ ok: true });
   }

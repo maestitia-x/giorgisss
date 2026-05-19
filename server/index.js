@@ -22,13 +22,14 @@ app.post("/api/prizes", (req, res) => {
 });
 
 app.put("/api/prizes/:id", (req, res) => {
-  const { name, special, weight } = req.body;
+  const { name, special, weight, order } = req.body;
   if (name !== undefined) db.prepare("UPDATE prizes SET name = ? WHERE id = ?").run(name, req.params.id);
   if (special !== undefined) db.prepare("UPDATE prizes SET special = ? WHERE id = ?").run(special ? 1 : 0, req.params.id);
   if (weight !== undefined) {
     const w = Math.max(0.05, Number(weight) || 1);
     db.prepare("UPDATE prizes SET weight = ? WHERE id = ?").run(w, req.params.id);
   }
+  if (order !== undefined) db.prepare('UPDATE prizes SET "order" = ? WHERE id = ?').run(Number(order) || 0, req.params.id);
   res.json({ ok: true });
 });
 
