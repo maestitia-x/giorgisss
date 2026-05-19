@@ -93,8 +93,11 @@ function AutoFitText({ name, lx, ly, textRot, arcDeg, textR }) {
     // Teğetsel kısıt: en içte arc genişliği fontu kaldırmalı
     // natH * FS <= k * (textR - natW * FS)  =>  FS <= k*textR / (natH + k*natW)
     const fsTang = (k * textR) / (natH + k * natW);
-    const target = Math.min(fsRadial, fsTang);
-    const clamped = Math.max(6, Math.min(26, target));
+    let target = Math.min(fsRadial, fsTang);
+    // Yumuşak büyüme: 14px'in üstünde kareköklü kompresyon — büyük dilimler
+    // hâlâ büyür ama kabalaşmaz. Küçük dilimler dokunulmaz.
+    if (target > 14) target = 14 + Math.sqrt(target - 14) * 1.5;
+    const clamped = Math.max(6, Math.min(22, target));
 
     setFontSize(prev => Math.abs(clamped - prev) > 0.5 ? clamped : prev);
   // eslint-disable-next-line react-hooks/exhaustive-deps
