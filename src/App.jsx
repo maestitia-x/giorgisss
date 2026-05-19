@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 
 /* ═══════════════════════════════════════════════════════
    API LAYER — SQLite backend via Express
@@ -55,6 +55,63 @@ function useAPI(endpoint, fallback) {
   }, [refresh]);
 
   return [data, setData, loaded, refresh];
+}
+
+/* ═══════════════════════════════════════════════════════
+   AutoFitText — dilime sığacak şekilde font'u otomatik ayarlar
+   Hem radyal uzunluk hem teğetsel arc genişliği kısıtlanır
+   ═══════════════════════════════════════════════════════ */
+function AutoFitText({ name, lx, ly, textRot, arcDeg, textR }) {
+  const ref = useRef(null);
+  const [fontSize, setFontSize] = useState(14);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Rotation'ı geçici olarak kaldır ki ölçüm gerçek doğal boyutu versin
+    const orig = el.getAttribute("transform");
+    el.removeAttribute("transform");
+    let bbox;
+    try { bbox = el.getBBox(); }
+    catch (e) {
+      if (orig) el.setAttribute("transform", orig);
+      return;
+    }
+    if (orig) el.setAttribute("transform", orig);
+
+    const W = bbox.width, H = bbox.height;
+    if (W <= 0 || H <= 0) return;
+
+    // Per-unit (font=1) doğal boyutlar
+    const natW = W / fontSize;
+    const natH = H / fontSize;
+
+    const k = arcDeg * Math.PI / 180;
+    const maxRadialLen = textR - 36;        // göbeğe çok yaklaşmasın
+    // Radyal kısıt: natW * FS <= maxRadialLen
+    const fsRadial = maxRadialLen / natW;
+    // Teğetsel kısıt: en içte arc genişliği fontu kaldırmalı
+    // natH * FS <= k * (textR - natW * FS)  =>  FS <= k*textR / (natH + k*natW)
+    const fsTang = (k * textR) / (natH + k * natW);
+    const target = Math.min(fsRadial, fsTang);
+    const clamped = Math.max(6, Math.min(26, target));
+
+    setFontSize(prev => Math.abs(clamped - prev) > 0.5 ? clamped : prev);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, arcDeg, textR]);
+
+  return (
+    <text
+      ref={ref}
+      x={lx} y={ly}
+      textAnchor="start" dominantBaseline="middle"
+      fontSize={fontSize} fontWeight="700" fill="#fff"
+      transform={`rotate(${textRot} ${lx} ${ly})`}
+      style={{ textShadow: "0 2px 4px rgba(0,0,0,.9)", fontFamily: "'Outfit',sans-serif" }}
+    >
+      {name}
+    </text>
+  );
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -133,23 +190,17 @@ function WheelSVG({ prizes, spinning, rotation, onSpin }) {
           const textRot = midDeg + 90;
           // Tek sayılı dilim sayısında son dilim için ara ton kullan ki yan yana aynı renk gelmesin
           const sliceColor = (n % 2 === 1 && i === n - 1) ? WC_ODD_END : WC[i % 2];
-          // Font size: dar dilimlerde küçülsün ki taşmasın
-          const baseFS = n>12?8:n>8?10:n>5?12:14;
-          const narrowFS = Math.max(6, Math.min(baseFS, Math.round(arcDeg * 0.9)));
-          // Max characters: slice'ın arcDeg'ine göre dinamik (dar dilim = kısa metin)
-          const maxChars = Math.max(4, Math.min(22, Math.round(arcDeg * 0.85)));
-          const displayName = p.name.length > maxChars ? p.name.slice(0, maxChars - 1) + "…" : p.name;
           return (
             <g key={p.id}>
               <path d={d} fill={sliceColor} stroke="#020410" strokeWidth="2"/>
               <path d={d} fill="url(#sh)" opacity=".35"/>
-              <text x={lx} y={ly} fill="#fff"
-                fontSize={narrowFS} fontWeight="700"
-                textAnchor="start" dominantBaseline="middle"
-                transform={`rotate(${textRot},${lx},${ly})`}
-                style={{textShadow:"0 2px 4px rgba(0,0,0,.9)",fontFamily:"'Outfit',sans-serif"}}>
-                {displayName}
-              </text>
+              <AutoFitText
+                name={p.name}
+                lx={lx} ly={ly}
+                textRot={textRot}
+                arcDeg={arcDeg}
+                textR={textR}
+              />
             </g>
           );
         })}
